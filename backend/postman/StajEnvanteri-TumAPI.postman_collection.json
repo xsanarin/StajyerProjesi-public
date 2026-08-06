@@ -1,0 +1,4647 @@
+{
+  "info": {
+    "name": "StajEnvanteri — Tum API",
+    "description": "Projedeki 17 controller'in tamamini kapsayan uctan uca koleksiyon.\n\n**Calistirma:** Import -> Run collection. Bastan sona kendi verisini kurar; tek gerekli degisken `baseUrl`.\n\n**Sira onemli:** 00 Kurulum diger her seyi besler. 05 Puanlama staj2'yi TAMAMLANDI yapar, 07 Temizlik veriyi kapatir.\n\nHer kosu `runId` ile benzersiz kayit uretir — ayni veritabaninda tekrar tekrar kosulabilir.\n\nTerminalden: `npx newman run postman/StajEnvanteri-TumAPI.postman_collection.json --env-var baseUrl=http://localhost:8070`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Tarih degiskenleri her kosuda yeniden hesaplanir.",
+          "const d = (n) => {",
+          "  const t = new Date(); t.setDate(t.getDate() + n);",
+          "  return t.toISOString().slice(0, 10);",
+          "};",
+          "pm.collectionVariables.set('gecmisGun',  d(-3));",
+          "pm.collectionVariables.set('gecmisGun2', d(-4));",
+          "pm.collectionVariables.set('dunGun',     d(-1));",
+          "pm.collectionVariables.set('gelecekGun', d(3));",
+          "pm.collectionVariables.set('yakinBitis', d(3));   // bildirim penceresine dussun",
+          "const now = new Date();",
+          "pm.collectionVariables.set('yil', now.getFullYear());",
+          "pm.collectionVariables.set('ay',  now.getMonth() + 1);"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8070"
+    },
+    {
+      "key": "adminEmail",
+      "value": "admin@staj.local"
+    },
+    {
+      "key": "adminSifre",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "00 — Kurulum (Auth + Provisioning)",
+      "item": [
+        {
+          "name": "00.1 Admin login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"sifre\": \"{{adminSifre}}\"\n}"
+            },
+            "description": "AuthController. Diger her sey bu token'a bagli."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Her TAM kosuda benzersiz veri uretmek icin runId'yi her login'de yenile.",
+                  "// Postman GUI'de koleksiyon degiskenleri kosular arasi kalici oldugu icin",
+                  "// sabit birakilirsa 2. kosu ayni departman adi/email ile 400 alir.",
+                  "pm.collectionVariables.set('runId', Date.now().toString().slice(-6));",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('ADMIN rolu', () => pm.expect(pm.response.json().rol).to.eql('ADMIN'));",
+                  "pm.collectionVariables.set('tokenAdmin', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00.2 Departman olustur",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenAdmin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/departman/save",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departman",
+                "save"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ad\": \"Yazilim-{{runId}}\"\n}"
+            },
+            "description": "DepartmanController.save"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('departmanHashId', pm.response.json().hashId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00.3 Donem olustur",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenAdmin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/donem/save",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "donem",
+                "save"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ad\": \"Donem-{{runId}}\",\n  \"baslangicTarihi\": \"2026-01-01\",\n  \"bitisTarihi\": \"2027-12-31\"\n}"
+            },
+            "description": "DonemController.save"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('donemHash', pm.response.json().hashId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00.4A Sorumlu A provision",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenAdmin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/sorumlular",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "sorumlular"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ad\": \"Ayse\",\n  \"soyad\": \"Asil\",\n  \"email\": \"a{{runId}}@staj.local\",\n  \"telefon\": \"555000000A\",\n  \"departmanHashId\": \"{{departmanHashId}}\"\n}"
+            },
+            "description": "AdminUserController.sorumluOlustur — gecici sifre YALNIZCA burada doner."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('geciciA', pm.response.json().geciciSifre);",
+                  "pm.collectionVariables.set('sorumluAHash', pm.response.json().profilHashId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00.4B Sorumlu B provision",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenAdmin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/sorumlular",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "sorumlular"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ad\": \"Baris\",\n  \"soyad\": \"Yedek\",\n  \"email\": \"b{{runId}}@staj.local\",\n  \"telefon\": \"555000000B\",\n  \"departmanHashId\": \"{{departmanHashId}}\"\n}"
+            },
+            "description": "AdminUserController.sorumluOlustur — gecici sifre YALNIZCA burada doner."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('geciciB', pm.response.json().geciciSifre);",
+                  "pm.collectionVariables.set('sorumluBHash', pm.response.json().profilHashId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00.4C Sorumlu C provision",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenAdmin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/sorumlular",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "sorumlular"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ad\": \"Cem\",\n  \"soyad\": \"Ilgisiz\",\n  \"email\": \"c{{runId}}@staj.local\",\n  \"telefon\": \"555000000C\",\n  \"departmanHashId\": \"{{departmanHashId}}\"\n}"
+            },
+            "description": "AdminUserController.sorumluOlustur — gecici sifre YALNIZCA burada doner."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('geciciC', pm.response.json().geciciSifre);",
+                  "pm.collectionVariables.set('sorumluCHash', pm.response.json().profilHashId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00.5.1 Stajyer 1 provision",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenAdmin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/stajyerler",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "stajyerler"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ad\": \"Can\",\n  \"soyad\": \"Stajyer\",\n  \"email\": \"s1{{runId}}@staj.local\",\n  \"telefon\": \"555111001\",\n  \"universite\": \"ITU\",\n  \"bolum\": \"Bilgisayar\",\n  \"sinif\": 3\n}"
+            },
+            "description": "AdminUserController.stajyerOlustur"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('gecikStajyer1', pm.response.json().geciciSifre);",
+                  "pm.collectionVariables.set('stajyer1Hash', pm.response.json().profilHashId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00.5.2 Stajyer 2 provision",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenAdmin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/stajyerler",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "stajyerler"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ad\": \"Deniz\",\n  \"soyad\": \"Stajyer\",\n  \"email\": \"s2{{runId}}@staj.local\",\n  \"telefon\": \"555111002\",\n  \"universite\": \"ITU\",\n  \"bolum\": \"Bilgisayar\",\n  \"sinif\": 3\n}"
+            },
+            "description": "AdminUserController.stajyerOlustur"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('gecikStajyer2', pm.response.json().geciciSifre);",
+                  "pm.collectionVariables.set('stajyer2Hash', pm.response.json().profilHashId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00.6 Sorumlu listesi (dogrulama)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenAdmin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sorumlu/getAll",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sorumlu",
+                "getAll"
+              ]
+            },
+            "description": "SorumluController.getAll. API disariya sadece hashId veriyor; sorumlu hashId'leri provision adimlarindan (00.4A/B/C) geliyor. Burada getAll'in bu kayitlari listeledigini dogruluyoruz."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.collectionVariables.get('runId');",
+                  "const emails = pm.response.json().map(x => x.email);",
+                  "pm.test('provisyon edilen sorumlular listede', () => {",
+                  "  ['a','b','c'].forEach(p => pm.expect(emails).to.include(p + r + '@staj.local'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00.7 Stajyer listesi (dogrulama)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenAdmin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/stajyer/getAll",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "stajyer",
+                "getAll"
+              ]
+            },
+            "description": "StajyerController.getAll. API disariya sadece hashId veriyor; stajyer hashId'leri provision adimlarindan (00.5.1/5.2) geliyor. Burada getAll'in bu kayitlari listeledigini dogruluyoruz."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const hashes = pm.response.json().map(x => x.hashId);",
+                  "pm.test('provisyon edilen stajyerler listede', () => {",
+                  "  [pm.collectionVariables.get('stajyer1Hash'), pm.collectionVariables.get('stajyer2Hash')]",
+                  "    .forEach(h => pm.expect(hashes).to.include(h));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00.8 Staj 1 (calisma staji)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenAdmin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/staj/save",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "staj",
+                "save"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stajyerHashId\": \"{{stajyer1Hash}}\",\n  \"donemHashId\": \"{{donemHash}}\",\n  \"asilSorumluHashId\": \"{{sorumluAHash}}\",\n  \"yedekSorumluHashId\": \"{{sorumluBHash}}\",\n  \"departmanHashId\": \"{{departmanHashId}}\",\n  \"seviye\": \"LEVEL_1\",\n  \"stajBaslangicTarihi\": \"2026-01-01\",\n  \"stajBitisTarihi\": \"{{yakinBitis}}\"\n}"
+            },
+            "description": "StajController.save. Devam + gorev testleri bu staj uzerinde kosar."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('staj1Hash', pm.response.json().hashId);",
+                  "pm.test('bitis tarihi kaydedildi', () =>",
+                  "  pm.expect(pm.response.json().stajBitisTarihi).to.not.be.null);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00.9 Staj 2 (puanlama staji)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenAdmin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/staj/save",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "staj",
+                "save"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stajyerHashId\": \"{{stajyer2Hash}}\",\n  \"donemHashId\": \"{{donemHash}}\",\n  \"asilSorumluHashId\": \"{{sorumluAHash}}\",\n  \"yedekSorumluHashId\": \"{{sorumluBHash}}\",\n  \"departmanHashId\": \"{{departmanHashId}}\",\n  \"seviye\": \"LEVEL_1\",\n  \"stajBaslangicTarihi\": \"2026-01-01\",\n  \"stajBitisTarihi\": \"2027-06-30\"\n}"
+            },
+            "description": "Puanlama staji TAMAMLANDI'ya gececegi icin ayri tutuluyor — staj1'in yazma testlerini bozmasin."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('staj2Hash', pm.response.json().hashId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00.10A Sorumlu A sifre degistir -> token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/sifre-degistir",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "sifre-degistir"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"a{{runId}}@staj.local\",\n  \"eskiSifre\": \"{{geciciA}}\",\n  \"yeniSifre\": \"Ayse12345\"\n}"
+            },
+            "description": "AuthController.sifreDegistir — ilk giriste zorunlu; token bu adimda doner."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('tokenSorumluA', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00.10B Sorumlu B sifre degistir -> token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/sifre-degistir",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "sifre-degistir"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"b{{runId}}@staj.local\",\n  \"eskiSifre\": \"{{geciciB}}\",\n  \"yeniSifre\": \"Baris12345\"\n}"
+            },
+            "description": "AuthController.sifreDegistir — ilk giriste zorunlu; token bu adimda doner."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('tokenSorumluB', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00.10C Sorumlu C sifre degistir -> token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/sifre-degistir",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "sifre-degistir"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"c{{runId}}@staj.local\",\n  \"eskiSifre\": \"{{geciciC}}\",\n  \"yeniSifre\": \"Cem123456\"\n}"
+            },
+            "description": "AuthController.sifreDegistir — ilk giriste zorunlu; token bu adimda doner."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('tokenSorumluC', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00.11 Stajyer 1 sifre degistir -> token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/sifre-degistir",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "sifre-degistir"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"s1{{runId}}@staj.local\",\n  \"eskiSifre\": \"{{gecikStajyer1}}\",\n  \"yeniSifre\": \"Can123456\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('tokenStajyer', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "AuthController + AdminUserController. Diger tum klasorler buradan beslenir."
+    },
+    {
+      "name": "01 — Organizasyon  [KISI-A]",
+      "item": [
+        {
+          "name": "DepartmanController",
+          "item": [
+            {
+              "name": "getAll",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/departman/getAll",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "departman",
+                    "getAll"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "getById",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/departman/getById/{{departmanHashId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "departman",
+                    "getById",
+                    "{{departmanHashId}}"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "update",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/departman/update/{{departmanHashId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "departman",
+                    "update",
+                    "{{departmanHashId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ad\": \"Yazilim-{{runId}}-v2\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "DonemController",
+          "item": [
+            {
+              "name": "getAll",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/donem/getAll",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "donem",
+                    "getAll"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "getById",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/donem/getById/{{donemHash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "donem",
+                    "getById",
+                    "{{donemHash}}"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "aktifYap",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/donem/aktifYap/{{donemHash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "donem",
+                    "aktifYap",
+                    "{{donemHash}}"
+                  ]
+                },
+                "description": "Yalnizca bir donem aktif olabilir (servis kurali)."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "update",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/donem/update/{{donemHash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "donem",
+                    "update",
+                    "{{donemHash}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ad\": \"Donem-{{runId}}-v2\",\n  \"baslangicTarihi\": \"2026-01-01\",\n  \"bitisTarihi\": \"2027-12-31\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "StajyerController",
+          "item": [
+            {
+              "name": "getAll",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/stajyer/getAll",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "stajyer",
+                    "getAll"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "getById",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/stajyer/getById/{{stajyer1Hash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "stajyer",
+                    "getById",
+                    "{{stajyer1Hash}}"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "update",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/stajyer/update/{{stajyer1Hash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "stajyer",
+                    "update",
+                    "{{stajyer1Hash}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ad\": \"Can\",\n  \"soyad\": \"Stajyer\",\n  \"email\": \"s1{{runId}}@staj.local\",\n  \"telefon\": \"5551110099\",\n  \"universite\": \"ITU\",\n  \"bolum\": \"Yazilim\",\n  \"sinif\": 4\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "save (dogrudan kayit)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/stajyer/save",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "stajyer",
+                    "save"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ad\": \"Deniz\",\n  \"soyad\": \"Dogrudan\",\n  \"email\": \"s3{{runId}}@staj.local\",\n  \"telefon\": \"5551110033\",\n  \"universite\": \"ITU\",\n  \"bolum\": \"Yazilim\",\n  \"sinif\": 3\n}"
+                },
+                "description": "Provisioning /api/admin/stajyerler ile yapilir; bu ise dogrudan /stajyer/save ucunu kapsar."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "SorumluController",
+          "item": [
+            {
+              "name": "getAll",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/sorumlu/getAll",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "sorumlu",
+                    "getAll"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "getById",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/sorumlu/getById/{{sorumluAHash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "sorumlu",
+                    "getById",
+                    "{{sorumluAHash}}"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "update",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/sorumlu/update/{{sorumluAHash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "sorumlu",
+                    "update",
+                    "{{sorumluAHash}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ad\": \"Ayse\",\n  \"soyad\": \"Asil\",\n  \"email\": \"a{{runId}}@staj.local\",\n  \"telefon\": \"5550000099\",\n  \"departmanHashId\": \"{{departmanHashId}}\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "StajController",
+          "item": [
+            {
+              "name": "getAll",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/staj/getAll",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "staj",
+                    "getAll"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "getById",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/staj/getById/{{staj1Hash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "staj",
+                    "getById",
+                    "{{staj1Hash}}"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "benim (sorumlunun stajlari)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/staj/benim?sorumluHashId={{sorumluAHash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "staj",
+                    "benim"
+                  ],
+                  "query": [
+                    {
+                      "key": "sorumluHashId",
+                      "value": "{{sorumluAHash}}"
+                    }
+                  ]
+                },
+                "description": "NOT: sorumluId query param'dan geliyor — token'dan degil."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "description": "Departman, Donem, Stajyer, Sorumlu, Staj temel CRUD."
+    },
+    {
+      "name": "02 — Devam Takibi  [KISI-B / ADIM 1]",
+      "item": [
+        {
+          "name": "DevamController (sorumlu)",
+          "item": [
+            {
+              "name": "giris (tek tik)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/devam/giris",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "devam",
+                    "giris"
+                  ]
+                },
+                "description": "Govde yok — saat SUNUCUDAN alinir."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "giris tekrar -> 400",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/devam/giris",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "devam",
+                    "giris"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "cikis (tek tik)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/devam/cikis",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "devam",
+                    "cikis"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "cikis tekrar -> 400",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/devam/cikis",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "devam",
+                    "cikis"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "yedek sorumlu da giris yapabilir",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluB}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/devam/cikis",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "devam",
+                    "cikis"
+                  ]
+                },
+                "description": "benimAktifStajim asil VE yedege izin verir; bugun cikis yapildigi icin 400 bekleniyor — onemli olan 403 ALMAMASI."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('403 DEGIL (yedek yetkili)', () => pm.expect(pm.response.code).to.not.eql(403));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "ilgisiz sorumlu -> 403",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluC}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/devam/giris",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "devam",
+                    "giris"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 403', () => pm.response.to.have.status(403));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "manuel kayit (geriye donuk)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/devam/manuel",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "devam",
+                    "manuel"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tarih\": \"{{gecmisGun}}\",\n  \"girisSaati\": \"{{gecmisGun}}T09:00:00\",\n  \"cikisSaati\": \"{{gecmisGun}}T17:00:00\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "manuel: gelecek tarih -> 400",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/devam/manuel",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "devam",
+                    "manuel"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tarih\": \"{{gelecekGun}}\",\n  \"girisSaati\": \"{{gelecekGun}}T09:00:00\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "manuel: mukerrer gun -> 400",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/devam/manuel",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "devam",
+                    "manuel"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tarih\": \"{{gecmisGun}}\",\n  \"girisSaati\": \"{{gecmisGun}}T09:00:00\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "aylik takvim",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/devam?yil={{yil}}&ay={{ay}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "devam"
+                  ],
+                  "query": [
+                    {
+                      "key": "yil",
+                      "value": "{{yil}}"
+                    },
+                    {
+                      "key": "ay",
+                      "value": "{{ay}}"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "const g = pm.response.json();",
+                      "// V13 sonrasi takvim AYIN HER GUNUNU dondurur (kaydi olmayanlar dahil).",
+                      "pm.test('ayin her gunu icin satir var', () => pm.expect(g.length).to.be.at.least(28));",
+                      "pm.test('durum gecerli', () => g.forEach(x =>",
+                      "  pm.expect(['TAM','CIKIS_YOK','GELMEDI','BEKLENIYOR','PLANSIZ']).to.include(x.durum)));",
+                      "pm.test('planli bayragi var', () => g.forEach(x =>",
+                      "  pm.expect(x.planli).to.be.a('boolean')));",
+                      "const m = g.find(x => x.manuelMi === true);",
+                      "if (m) pm.collectionVariables.set('devamHash', m.hashId);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "aylik ozet",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/devam/ozet?yil={{yil}}&ay={{ay}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "devam",
+                    "ozet"
+                  ],
+                  "query": [
+                    {
+                      "key": "yil",
+                      "value": "{{yil}}"
+                    },
+                    {
+                      "key": "ay",
+                      "value": "{{ay}}"
+                    }
+                  ]
+                },
+                "description": "Aylik ozet: planli / gelinen / devamsiz gun sayilari + devam yuzdesi."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "const o = pm.response.json();",
+                      "pm.test('sayisal alanlar var', () => {",
+                      "  ['planliGun','gelinenGun','devamsizGun','planDisiGun','devamYuzdesi']",
+                      "    .forEach(k => pm.expect(o[k]).to.be.a('number'));",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "manuel: cikissiz gun -> CIKIS_YOK (200)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/devam/manuel",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "devam",
+                    "manuel"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tarih\": \"{{dunGun}}\",\n  \"girisSaati\": \"{{dunGun}}T09:00:00\"\n}"
+                },
+                "description": "Sadece giris gonderilir; cikis yok. Kayit CIKIS_YOK durumunda acilir (ADIM1 T12)."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "manuel: cikis var giris yok -> 400 (CHECK)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/devam/manuel",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "devam",
+                    "manuel"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tarih\": \"{{gecmisGun2}}\",\n  \"cikisSaati\": \"{{gecmisGun2}}T18:00:00\"\n}"
+                },
+                "description": "Girissiz cikis DB CHECK kuraliyla reddedilir (ADIM1 T11)."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                      "pm.test('girissiz cikis reddedilir', () =>",
+                      "  pm.expect(pm.response.json().exception.message).to.include('Once giris yapilmali'));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "AdminDevamController",
+          "item": [
+            {
+              "name": "admin manuel (sahiplik aranmaz)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/stajlar/{{staj1Hash}}/devam/manuel",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "devam",
+                    "manuel"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tarih\": \"{{gecmisGun2}}\",\n  \"girisSaati\": \"{{gecmisGun2}}T10:00:00\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "SORUMLU token -> 403",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/stajlar/{{staj1Hash}}/devam/manuel",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "devam",
+                    "manuel"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tarih\": \"{{gecmisGun2}}\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 403', () => pm.response.to.have.status(403));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "kaydi duzelt (PUT)",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/stajlar/{{staj1Hash}}/devam/{{devamHash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "devam",
+                    "{{devamHash}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"girisSaati\": \"{{gecmisGun}}T10:30:00\",\n  \"cikisSaati\": \"{{gecmisGun}}T18:30:00\"\n}"
+                },
+                "description": "A'nin ekledigi uc. Duzeltilen kayit manuelMi=true olur."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "cikis < giris -> 400",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/stajlar/{{staj1Hash}}/devam/{{devamHash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "devam",
+                    "{{devamHash}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"girisSaati\": \"{{gecmisGun}}T18:00:00\",\n  \"cikisSaati\": \"{{gecmisGun}}T09:00:00\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "yanlis staj + baska kayit -> 400 bulunamadi",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/stajlar/{{staj2Hash}}/devam/{{devamHash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "stajlar",
+                    "{{staj2Hash}}",
+                    "devam",
+                    "{{devamHash}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"girisSaati\": \"{{gecmisGun}}T09:00:00\",\n  \"cikisSaati\": \"{{gecmisGun}}T17:00:00\"\n}"
+                },
+                "description": "devamHash staj1'e ait; staj2 altinda duzeltmeye calisinca kayit o staja ait degil -> 400 bulunamadi (ADIM1 T19)."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                      "pm.test('kayit o staja ait degil -> bulunamadi', () =>",
+                      "  pm.expect(pm.response.json().exception.message).to.include('bulunamadi'));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "kaydi sil (DELETE)",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/stajlar/{{staj1Hash}}/devam/{{devamHash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "devam",
+                    "{{devamHash}}"
+                  ]
+                },
+                "description": "DIKKAT: bu KALICI silme (hard delete). Projenin geri kalani soft delete kullaniyor."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 204', () => pm.response.to.have.status(204));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "description": "Tek tik giris-cikis, manuel kayit, aylik takvim, admin mudahalesi."
+    },
+    {
+      "name": "03 — Gorev / Sablon  [KISI-B / ADIM 2]",
+      "item": [
+        {
+          "name": "AdminSablonController",
+          "item": [
+            {
+              "name": "sablon olustur",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/sablonlar",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "sablonlar"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ad\": \"Java Temelleri\",\n  \"aciklama\": \"LEVEL_1 sablonu\",\n  \"departmanHashId\": \"{{departmanHashId}}\",\n  \"seviye\": \"LEVEL_1\",\n  \"maddeler\": [\n    {\n      \"maddeMetni\": \"JVM nedir, ne ise yarar arastir\"\n    },\n    {\n      \"maddeMetni\": \"Garbage collector nasil calisir\"\n    }\n  ]\n}"
+                },
+                "description": "Maddeler SORU degil, yapilacak IS."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "pm.collectionVariables.set('sablonHash', pm.response.json().hashId);",
+                      "pm.test('2 madde', () => pm.expect(pm.response.json().maddeler).to.have.lengthOf(2));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "LEVEL_2 sablonu (uyumsuzluk testi icin)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/sablonlar",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "sablonlar"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ad\": \"Ileri Java\",\n  \"departmanHashId\": \"{{departmanHashId}}\",\n  \"seviye\": \"LEVEL_2\",\n  \"maddeler\": [\n    {\n      \"maddeMetni\": \"Concurrency arastir\"\n    }\n  ]\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "pm.collectionVariables.set('sablonL2Hash', pm.response.json().hashId);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "listele",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/sablonlar?sadeceAktif=false",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "sablonlar"
+                  ],
+                  "query": [
+                    {
+                      "key": "sadeceAktif",
+                      "value": "false"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "getir",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/sablonlar/{{sablonHash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "sablonlar",
+                    "{{sablonHash}}"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "SorumluGorevController",
+          "item": [
+            {
+              "name": "onerilen sablonlar",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/onerilen-sablonlar",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "onerilen-sablonlar"
+                  ]
+                },
+                "description": "Stajin departman + seviyesine uyan AKTIF sablonlar."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "pm.test('LEVEL_2 sablonu onerilmiyor', () =>",
+                      "  pm.expect(pm.response.json().every(s => s.seviye === 'LEVEL_1')).to.be.true);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "sablon ata (SNAPSHOT)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/gorevler",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "gorevler"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sablonHashId\": \"{{sablonHash}}\"\n}"
+                },
+                "description": "Sistemin kalbi: madde METINLERI kopyalanir, referans tutulmaz."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "pm.collectionVariables.set('gorevHash', pm.response.json().hashId);",
+                      "pm.test('2 madde kopyalandi', () => pm.expect(pm.response.json().maddeler).to.have.lengthOf(2));",
+                      "pm.test('ilerleme %0', () => pm.expect(pm.response.json().ilerleme.yuzde).to.eql(0));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "ayni sablon 2. kez -> 400",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/gorevler",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "gorevler"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sablonHashId\": \"{{sablonHash}}\"\n}"
+                },
+                "description": "Cift tiklama korumasi."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "seviye uyumsuz sablon -> 400",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/gorevler",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "gorevler"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sablonHashId\": \"{{sablonL2Hash}}\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "staj gorevleri",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/gorevler",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "gorevler"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "const md = pm.response.json()[0].maddeler;",
+                      "pm.collectionVariables.set('madde1Hash', md[0].hashId);",
+                      "pm.collectionVariables.set('madde2Hash', md[1].hashId);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "ilerleme",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/gorevler/{{gorevHash}}/ilerleme",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "gorevler",
+                    "{{gorevHash}}",
+                    "ilerleme"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "const i = pm.response.json();",
+                      "pm.test('toplam 2', () => pm.expect(i.toplam).to.eql(2));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "SABLON DEGISSE DE GOREV DEGISMEZ (kabul kriteri)",
+          "item": [
+            {
+              "name": "sablonu degistir",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/sablonlar/{{sablonHash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "sablonlar",
+                    "{{sablonHash}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ad\": \"Java Temelleri V2\",\n  \"departmanHashId\": \"{{departmanHashId}}\",\n  \"seviye\": \"LEVEL_1\",\n  \"maddeler\": [\n    {\n      \"maddeMetni\": \"TAMAMEN FARKLI MADDE\"\n    }\n  ]\n}"
+                },
+                "description": "Sablon 2 maddeden 1 maddeye dusuyor ve metin degisiyor."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "atanmis gorev AYNI kalmali",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/gorevler",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "gorevler"
+                  ]
+                },
+                "description": "Gereksinim 3'un kaniti."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "const g = pm.response.json()[0];",
+                      "pm.test('madde sayisi degismedi (2)', () => pm.expect(g.maddeler).to.have.lengthOf(2));",
+                      "pm.test('madde metni degismedi', () =>",
+                      "  pm.expect(g.maddeler[0].maddeMetni).to.include('JVM'));",
+                      "pm.test('gorev basligi da kopya', () => pm.expect(g.baslik).to.eql('Java Temelleri'));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "StajyerGorevController (/api/me)",
+          "item": [
+            {
+              "name": "stajlarim",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenStajyer}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/me/stajlar",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "me",
+                    "stajlar"
+                  ]
+                },
+                "description": "Gecmis donemler DAHIL."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "gorevlerim",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenStajyer}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/me/gorevler?stajHashId={{staj1Hash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "me",
+                    "gorevler"
+                  ],
+                  "query": [
+                    {
+                      "key": "stajHashId",
+                      "value": "{{staj1Hash}}"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "madde tamamla (NOTSUZ)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenStajyer}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/me/maddeler/{{madde1Hash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "me",
+                    "maddeler",
+                    "{{madde1Hash}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tamamlandi\": true\n}"
+                },
+                "description": "Madde yapilacak IS oldugu icin not ZORUNLU DEGIL."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "pm.test('TAMAMLANDI', () => pm.expect(pm.response.json().durum).to.eql('TAMAMLANDI'));",
+                      "pm.test('not bos', () => pm.expect(pm.response.json().stajyerNotu).to.be.null);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "madde tamamla (opsiyonel notla)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenStajyer}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/me/maddeler/{{madde2Hash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "me",
+                    "maddeler",
+                    "{{madde2Hash}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tamamlandi\": true,\n  \"stajyerNotu\": \"Oracle dokumanindan calistim\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "pm.test('not kaydedildi', () =>",
+                      "  pm.expect(pm.response.json().stajyerNotu).to.eql('Oracle dokumanindan calistim'));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "geri al",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenStajyer}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/me/maddeler/{{madde1Hash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "me",
+                    "maddeler",
+                    "{{madde1Hash}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tamamlandi\": false\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "pm.test('BEKLIYOR', () => pm.expect(pm.response.json().durum).to.eql('BEKLIYOR'));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "tekrar tamamla",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenStajyer}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/me/maddeler/{{madde1Hash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "me",
+                    "maddeler",
+                    "{{madde1Hash}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tamamlandi\": true\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "sorumlu /api/me'ye erisemez -> 403",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/me/stajlar",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "me",
+                    "stajlar"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 403', () => pm.response.to.have.status(403));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Onay akisi",
+          "item": [
+            {
+              "name": "gerekcesiz ret -> 400",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/maddeler/{{madde2Hash}}/onay",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "maddeler",
+                    "{{madde2Hash}}",
+                    "onay"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"durum\": \"REDDEDILDI\"\n}"
+                },
+                "description": "Ret gerekce ISTER; onayda not opsiyonel."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "gecersiz durum -> 400",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/maddeler/{{madde2Hash}}/onay",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "maddeler",
+                    "{{madde2Hash}}",
+                    "onay"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"durum\": \"BEKLIYOR\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "reddet (gerekceli)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/maddeler/{{madde2Hash}}/onay",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "maddeler",
+                    "{{madde2Hash}}",
+                    "onay"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"durum\": \"REDDEDILDI\",\n  \"onayNotu\": \"GC bolumu eksik, tekrar bak\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "pm.test('REDDEDILDI', () => pm.expect(pm.response.json().durum).to.eql('REDDEDILDI'));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "stajyer yeniden yapar",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenStajyer}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/me/maddeler/{{madde2Hash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "me",
+                    "maddeler",
+                    "{{madde2Hash}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tamamlandi\": true,\n  \"stajyerNotu\": \"GC bolumunu ekledim\"\n}"
+                },
+                "description": "Ret gerekcesi SILINMEMELI — 'onceki geri bildirim' olarak kalir."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "pm.test('RET GEREKCESI KORUNDU', () =>",
+                      "  pm.expect(pm.response.json().onayNotu).to.eql('GC bolumu eksik, tekrar bak'));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "onayla",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/maddeler/{{madde2Hash}}/onay",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "maddeler",
+                    "{{madde2Hash}}",
+                    "onay"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"durum\": \"ONAYLANDI\",\n  \"onayNotu\": \"Simdi tamam\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "onayli madde stajyerce degistirilemez -> 400",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenStajyer}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/me/maddeler/{{madde2Hash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "me",
+                    "maddeler",
+                    "{{madde2Hash}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tamamlandi\": true\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Seviye yukseltme",
+          "item": [
+            {
+              "name": "stajyer bir maddeyi geri alir (gorev yeniden BEKLIYOR)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenStajyer}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/me/maddeler/{{madde1Hash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "me",
+                    "maddeler",
+                    "{{madde1Hash}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tamamlandi\": false\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "gorev bitmeden -> 400",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/seviye",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "seviye"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"seviye\": \"LEVEL_2\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "geriye dusurulemez -> 400",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/seviye",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "seviye"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"seviye\": \"LEVEL_1\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "kalan maddeyi tamamla",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenStajyer}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/me/maddeler/{{madde1Hash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "me",
+                    "maddeler",
+                    "{{madde1Hash}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tamamlandi\": true\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "gorev TAMAMLANDI + ilerleme %100",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/gorevler/{{gorevHash}}/ilerleme",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "gorevler",
+                    "{{gorevHash}}",
+                    "ilerleme"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "pm.test('%100', () => pm.expect(pm.response.json().yuzde).to.eql(100));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "simdi yukseltilebilir",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj1Hash}}/seviye",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "seviye"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"seviye\": \"LEVEL_2\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "pm.test('LEVEL_2', () => pm.expect(pm.response.json().seviye).to.eql('LEVEL_2'));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "description": "Snapshot atama, ilerleme, onay akisi, seviye yukseltme."
+    },
+    {
+      "name": "04 — Bitis Bildirimi  [KISI-B / ADIM 3]",
+      "item": [
+        {
+          "name": "BildirimController (sorumlu)",
+          "item": [
+            {
+              "name": "yaklasan bitisler (A'nin kutusu)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/yaklasan-bitisler?gun=5",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "yaklasan-bitisler"
+                  ],
+                  "query": [
+                    {
+                      "key": "gun",
+                      "value": "5"
+                    }
+                  ]
+                },
+                "description": "A'nin sorumlu sayfasindaki kutu bunu cagirir."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "const l = pm.response.json();",
+                      "pm.test('staj1 listede (yakin bitis)', () =>",
+                      "  pm.expect(l.some(x => x.stajHashId === pm.collectionVariables.get('staj1Hash'))).to.be.true);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "ilgisiz sorumlu bos gorur",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluC}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/yaklasan-bitisler?gun=365",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "yaklasan-bitisler"
+                  ],
+                  "query": [
+                    {
+                      "key": "gun",
+                      "value": "365"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "pm.test('bos liste', () => pm.expect(pm.response.json()).to.have.lengthOf(0));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "AdminBildirimController",
+          "item": [
+            {
+              "name": "tum departmanlar",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/bildirim/yaklasan-bitisler?gun=5",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "bildirim",
+                    "yaklasan-bitisler"
+                  ],
+                  "query": [
+                    {
+                      "key": "gun",
+                      "value": "5"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "pencere disi (gun=1)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/bildirim/yaklasan-bitisler?gun=1",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "bildirim",
+                    "yaklasan-bitisler"
+                  ],
+                  "query": [
+                    {
+                      "key": "gun",
+                      "value": "1"
+                    }
+                  ]
+                },
+                "description": "staj2 (2027 bitis) bu pencerede GORUNMEMELI."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "pm.test('staj2 yok', () =>",
+                      "  pm.expect(pm.response.json().some(x => x.stajHashId === pm.collectionVariables.get('staj2Hash'))).to.be.false);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "job'i elle tetikle",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/bildirim/tetikle",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "bildirim",
+                    "tetikle"
+                  ]
+                },
+                "description": "Mail KAPALIYSA icerik log'a yazilir, bildirilenSorumluSayisi=0 doner."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                      "pm.test('sayac dondu', () =>",
+                      "  pm.expect(pm.response.json()).to.have.property('bildirilenSorumluSayisi'));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "sorumlu tetikleyemez -> 403",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/bildirim/tetikle",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "bildirim",
+                    "tetikle"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 403', () => pm.response.to.have.status(403));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "description": "Yaklasan bitisler + gunluk job."
+    },
+    {
+      "name": "05 — Puanlama & Kapanis  [KISI-A]",
+      "item": [
+        {
+          "name": "SorumluPuanController",
+          "item": [
+            {
+              "name": "puanla (staj2)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj2Hash}}/puanla",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj2Hash}}",
+                    "puanla"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"puan\": 85,\n  \"yorum\": \"Basarili bir staj gecirdi\"\n}"
+                },
+                "description": "Puanlama staji TAMAMLANDI yapar -> yazma islemleri kilitlenir."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "kapali staja devam yazilamaz -> 400",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenSorumluA}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/sorumlu/stajlar/{{staj2Hash}}/devam/giris",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sorumlu",
+                    "stajlar",
+                    "{{staj2Hash}}",
+                    "devam",
+                    "giris"
+                  ]
+                },
+                "description": "benimAktifStajim: staj DEVAM_EDIYOR degilse yazma yok."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "AdminStajController",
+          "item": [
+            {
+              "name": "puan duzelt",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/stajlar/{{staj2Hash}}/puan",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "stajlar",
+                    "{{staj2Hash}}",
+                    "puan"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"puan\": 90,\n  \"yorum\": \"Revize\",\n  \"gerekce\": \"Sorumlu yanlis girmis\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "kilidi ac",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/stajlar/{{staj2Hash}}/kilidi-ac",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "stajlar",
+                    "{{staj2Hash}}",
+                    "kilidi-ac"
+                  ]
+                },
+                "description": "Staji tekrar DEVAM_EDIYOR yapar."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "yedek sorumlu ata",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/stajlar/{{staj1Hash}}/yedek-sorumlu",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "stajlar",
+                    "{{staj1Hash}}",
+                    "yedek-sorumlu"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sorumluHashId\": \"{{sorumluCHash}}\"\n}"
+                },
+                "description": "DIKKAT: C farkli departmandaysa 400 doner (departman eslesme kurali)."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 ya da 400 (departman kuralina bagli)', () =>",
+                      "  pm.expect([200,400]).to.include(pm.response.code));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "departman duzelt (asil+yedek)",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/stajlar/{{staj2Hash}}/departman",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "stajlar",
+                    "{{staj2Hash}}",
+                    "departman"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"departmanHashId\": \"{{departmanHashId}}\",\n  \"asilSorumluHashId\": \"{{sorumluBHash}}\",\n  \"yedekSorumluHashId\": \"{{sorumluCHash}}\"\n}"
+                },
+                "description": "Yanlis departmanla acilmis stajin departmanini + asil/yedegini birlikte duzeltir (DepartmanDegistirRequest)."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 ya da 400 (departman eslesme kuralina bagli)', () =>",
+                      "  pm.expect([200,400]).to.include(pm.response.code));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "description": "Puanlama staji kapatir; admin duzeltme ve kilit acma."
+    },
+    {
+      "name": "06 — Deprecated",
+      "item": [
+        {
+          "name": "StajyerApplicationController  [@Deprecated]",
+          "item": [
+            {
+              "name": "getAll — KAPALI olmali",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/stajyerApplication/getAll",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "stajyerApplication",
+                    "getAll"
+                  ]
+                },
+                "description": "ADIM 0'da @RestController anotasyonu yorumlanarak kapatildi (sinif SILINMEDI). gunKalan ucu ADIM 3'te kaldirildi; yerine /api/sorumlu/yaklasan-bitisler.\n\nUc kapali oldugu icin Spring NoResourceFoundException firlatir; GlobalExceptionHandler artik bunu 404 olarak dondurur (onceden genel Exception handler'i 500'e ceviriyordu — DUZELTILDI)."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('uc kapali (200 DONMEMELI)', () =>",
+                      "  pm.expect(pm.response.code).to.not.eql(200));",
+                      "// Uc kapali (@RestController yorumlanmis) -> Spring 404 doner.",
+                      "pm.test('uc kapali -> 404', () =>",
+                      "  pm.expect(pm.response.code).to.eql(404));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "getById — KAPALI olmali",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/stajyerApplication/getById/{{stajyer1Hash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "stajyerApplication",
+                    "getById",
+                    "{{stajyer1Hash}}"
+                  ]
+                },
+                "description": "@RestController yorumlandigi icin uc kapali (sinif SILINMEDI). Uc yok -> Spring 404 doner."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('uc kapali (200 DONMEMELI)', () =>",
+                      "  pm.expect(pm.response.code).to.not.eql(200));",
+                      "// Sinif @RestController kapatildigi icin uc yok -> Spring 404 doner.",
+                      "pm.test('uc kapali -> 404', () =>",
+                      "  pm.expect(pm.response.code).to.eql(404));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "save — KAPALI olmali",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/stajyerApplication/save/{{stajyer1Hash}}/{{sorumluAHash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "stajyerApplication",
+                    "save",
+                    "{{stajyer1Hash}}",
+                    "{{sorumluAHash}}"
+                  ]
+                },
+                "description": "@RestController yorumlandigi icin uc kapali (sinif SILINMEDI). Uc yok -> Spring 404 doner."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('uc kapali (200 DONMEMELI)', () =>",
+                      "  pm.expect(pm.response.code).to.not.eql(200));",
+                      "// Sinif @RestController kapatildigi icin uc yok -> Spring 404 doner.",
+                      "pm.test('uc kapali -> 404', () =>",
+                      "  pm.expect(pm.response.code).to.eql(404));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "yedekEkle — KAPALI olmali",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/stajyerApplication/yedekEkle/{{stajyer1Hash}}/{{sorumluBHash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "stajyerApplication",
+                    "yedekEkle",
+                    "{{stajyer1Hash}}",
+                    "{{sorumluBHash}}"
+                  ]
+                },
+                "description": "@RestController yorumlandigi icin uc kapali (sinif SILINMEDI). Uc yok -> Spring 404 doner."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('uc kapali (200 DONMEMELI)', () =>",
+                      "  pm.expect(pm.response.code).to.not.eql(200));",
+                      "// Sinif @RestController kapatildigi icin uc yok -> Spring 404 doner.",
+                      "pm.test('uc kapali -> 404', () =>",
+                      "  pm.expect(pm.response.code).to.eql(404));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "sorumluAyril — KAPALI olmali",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/stajyerApplication/sorumluAyril/{{stajyer1Hash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "stajyerApplication",
+                    "sorumluAyril",
+                    "{{stajyer1Hash}}"
+                  ]
+                },
+                "description": "@RestController yorumlandigi icin uc kapali (sinif SILINMEDI). Uc yok -> Spring 404 doner."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('uc kapali (200 DONMEMELI)', () =>",
+                      "  pm.expect(pm.response.code).to.not.eql(200));",
+                      "// Sinif @RestController kapatildigi icin uc yok -> Spring 404 doner.",
+                      "pm.test('uc kapali -> 404', () =>",
+                      "  pm.expect(pm.response.code).to.eql(404));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "sorumluAta — KAPALI olmali",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/stajyerApplication/sorumluAta/{{stajyer1Hash}}/{{sorumluAHash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "stajyerApplication",
+                    "sorumluAta",
+                    "{{stajyer1Hash}}",
+                    "{{sorumluAHash}}"
+                  ]
+                },
+                "description": "@RestController yorumlandigi icin uc kapali (sinif SILINMEDI). Uc yok -> Spring 404 doner."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('uc kapali (200 DONMEMELI)', () =>",
+                      "  pm.expect(pm.response.code).to.not.eql(200));",
+                      "// Sinif @RestController kapatildigi icin uc yok -> Spring 404 doner.",
+                      "pm.test('uc kapali -> 404', () =>",
+                      "  pm.expect(pm.response.code).to.eql(404));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "delete — KAPALI olmali",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/stajyerApplication/delete/{{stajyer1Hash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "stajyerApplication",
+                    "delete",
+                    "{{stajyer1Hash}}"
+                  ]
+                },
+                "description": "@RestController yorumlandigi icin uc kapali (sinif SILINMEDI). Uc yok -> Spring 404 doner."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('uc kapali (200 DONMEMELI)', () =>",
+                      "  pm.expect(pm.response.code).to.not.eql(200));",
+                      "// Sinif @RestController kapatildigi icin uc yok -> Spring 404 doner.",
+                      "pm.test('uc kapali -> 404', () =>",
+                      "  pm.expect(pm.response.code).to.eql(404));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Kullanimdan kaldirildi — referans amacli duruyor."
+        }
+      ]
+    },
+    {
+      "name": "07 — Temizlik  [YIKICI]",
+      "item": [
+        {
+          "name": "Silme uclari  [YIKICI - en sonda]",
+          "item": [
+            {
+              "name": "sablon pasiflestir",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/sablonlar/{{sablonL2Hash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "sablonlar",
+                    "{{sablonL2Hash}}"
+                  ]
+                },
+                "description": "Kalici silme DEGIL: aktif=false. Gecmis atamalarin izi korunur."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 204', () => pm.response.to.have.status(204));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "staj sil (soft)",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/staj/delete/{{staj1Hash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "staj",
+                    "delete",
+                    "{{staj1Hash}}"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "stajyer sil (soft)",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/stajyer/delete/{{stajyer2Hash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "stajyer",
+                    "delete",
+                    "{{stajyer2Hash}}"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "departman sil (soft)",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/departman/delete/{{departmanHashId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "departman",
+                    "delete",
+                    "{{departmanHashId}}"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "donem sil (soft)",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/donem/delete/{{donemHash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "donem",
+                    "delete",
+                    "{{donemHash}}"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "admin sorumlu ayril (DELETE)",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/sorumlular/{{sorumluCHash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "sorumlular",
+                    "{{sorumluCHash}}"
+                  ]
+                },
+                "description": "Sorumluyu gorevden ayirir; asil oldugu aktif stajlarda yedek asile terfi eder. C yedek oldugu icin terfi tetiklenmez."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "sorumlu sil (soft)",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{tokenAdmin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/sorumlu/delete/{{sorumluBHash}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "sorumlu",
+                    "delete",
+                    "{{sorumluBHash}}"
+                  ]
+                },
+                "description": "Kalici silme DEGIL: status=false (soft delete)."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Bu klasor test verisini kapatir. Tek tek de calistirilabilir."
+        }
+      ]
+    }
+  ]
+}

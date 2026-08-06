@@ -1,0 +1,12 @@
+# Yerel gelistirme icin: bu dosyayi application-local.yml olarak kopyala ve degerleri doldur.
+# application-local.yml .gitignore'da; repoya ASLA girmez. Uretimde env degiskenleri kullan.
+spring:
+  datasource:
+    password: degistir
+
+app:
+  jwt:
+    # En az 32 byte. Uretmek icin: openssl rand -base64 48
+    secret: degistir-en-az-32-karakterlik-rastgele-bir-deger
+  admin:
+    sifre: degistir
